@@ -1,12 +1,35 @@
 import subprocess
 import json
+import boto3
+import os
+import time
+
+s3 = boto3.client('s3')
 
 def lambda_handler(event, context):
-    # Construct the command to run the binary with arguments
-    command = '''/usr/bin/bash -c 'find / -name poky' '''
+    bucket_name = os.environ['BUCKET_NAME']
+    golden_image = "aws-greengrass-test-image-raspberrypi5.rpi-sdimg"
+    custom_image = "aws-greengrass-test-image-raspberrypi5.rpi-sdimg-modified"
+    local_path = '/tmp/image'
+
     try:
-        # Run the binary and capture the output
-        result = subprocess.run([command], capture_output=True, text=True, shell=True)
+        # Download the file from S3
+        start_time = time.time()
+        s3.download_file(bucket_name, golden_image, local_path)
+        end_time = time.time()
+        download_time = end_time - start_time
+        print(f"Download time: {download_time} seconds")
+        
+        # Execute a command
+        # my_env = os.environ.copy()
+        # my_env["PATH"] = f"/usr/sbin:/sbin:/opt/:/opt/bin:{my_env['PATH']}"
+        start_time = time.time()
+        command = '/usr/bin/bash -c "/opt/poky/scripts/wic ls /tmp/image"'
+        result = subprocess.run(command, capture_output=True, text=True, shell=True, env=my_env)
+        end_time = time.time()
+        execution_time = end_time - start_time
+        print(f"Execution time: {execution_time} seconds")
+        
         print("result.stdout:" + result.stdout)
 
         # Check for errors
@@ -16,17 +39,29 @@ def lambda_handler(event, context):
                 'body': f"Error: {result.stderr}"
             }
 
+        # Upload the modified file back to S3
+        start_time = time.time()
+        s3.upload_file(local_path, bucket_name, custom_image)
+        end_time = time.time()
+        upload_time = end_time - start_time
+        print(f"Upload time: {upload_time} seconds")
+
+        print(f"Successfully modified and uploaded {custom_image} back to {bucket_name}")
+
         # Return the output of the binary
         return {
             'statusCode': 200,
-            'body': result.stdout
+            'body': result.stdout,
+            'timings': {
+                'download_time': download_time,
+                'execution_time': execution_time,
+                'upload_time': upload_time
+            }
         }
 
     except Exception as e:
-        return {
-            'statusCode': 500,
-            'body': str(e)
-        }
+        print(e)
+        raise e 
         
 def main():
     # Example event to simulate the Lambda input

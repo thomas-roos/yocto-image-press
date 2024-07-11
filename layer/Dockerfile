@@ -1,8 +1,5 @@
 FROM public.ecr.aws/lts/ubuntu:22.04_stable
 
-# /asset must exist and not be empty
-WORKDIR /asset
-
 # non-interactive install
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -13,10 +10,10 @@ RUN apt-get update && \
     parted \
     findutils
 
+# /asset must exist and not be empty
+WORKDIR /asset
 
-RUN git clone git://git.yoctoproject.org/poky --depth=1  -b kirkstone
-
-COPY aws-greengrass-test-image-raspberrypi5.rpi-sdimg /
+RUN git clone git://git.yoctoproject.org/poky --depth=1  -b kirkstone /asset/poky
 
 # Install Python dependencies
 COPY requirements.txt .
